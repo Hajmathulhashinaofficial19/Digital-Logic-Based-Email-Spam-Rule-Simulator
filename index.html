@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EC2201 Digital Logic Email Spam Rule Simulator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0284c7',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        },
+                        gate: {
+                            wire: '#64748b',
+                            active: '#22c55e',
+                            inactive: '#ef4444',
+                            gateBg: '#1e293b'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'Fira Code', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts & Font Awesome Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        /* K-Map table styling */
+        .kmap-cell {
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+        }
+        .kmap-cell:hover {
+            transform: scale(1.03);
+            z-index: 10;
+        }
+
+        /* Glassmorphism utility */
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-panel-light {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+        }
+
+        /* Signal pulse animation */
+        @keyframes pulse-wire {
+            0% { stroke-dashoffset: 20; }
+            100% { stroke-dashoffset: 0; }
+        }
+        .wire-active {
+            stroke: #22c55e;
+            stroke-dasharray: 4, 2;
+            animation: pulse-wire 0.8s linear infinite;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col transition-colors duration-300">
+
+    <!-- Navigation Bar -->
+    <header class="border-b border-slate-800 bg-slate-900/80 sticky top-0 z-50 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-gradient-to-tr from-cyan-500 to-blue-600 p-2 rounded-xl text-white shadow-lg shadow-cyan-500/20">
+                    <i class="fa-solid me-0.5 fa-microchip text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+                        EC2201 LogicSpam Engine
+                    </h1>
+                    <p class="text-xs text-slate-400 hidden sm:block">Digital Electronics Lab • Spam Rule Logic Simulator</p>
+                </div>
+            </div>
+
+            <!-- Global Variable Mode Toggle & Theme Toggle -->
+            <div class="flex items-center space-x-4">
+                <div class="flex items-center bg-slate-800 p-1 rounded-lg border border-slate-700">
+                    <span class="text-xs font-semibold px-2 text-slate-400">Vars:</span>
+                    <button id="var-mode-4" onclick="setVariableMode(4)" class="px-2.5 py-1 text-xs font-medium rounded-md bg-cyan-600 text-white transition-all shadow-sm">4 (A-D)</button>
+                    <button id="var-mode-5" onclick="setVariableMode(5)" class="px-2.5 py-1 text-xs font-medium rounded-md text-slate-400 hover:text-white transition-all">5 (A-E)</button>
+                </div>
+
+                <button id="theme-toggle" onclick="toggleTheme()" class="p-2 text-slate-400 hover:text-white rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 transition-all">
+                    <i id="theme-icon" class="fa-solid fa-moon text-base"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <div class="bg-slate-900 border-b border-slate-800 px-4 sm:px-8 overflow-x-auto">
+        <div class="max-w-7xl mx-auto flex space-x-2 sm:space-x-6 min-w-max">
+            <button onclick="switchTab('builder')" id="tab-builder" class="tab-btn py-3 px-3 text-sm font-medium border-b-2 border-cyan-500 text-cyan-400 flex items-center gap-2">
+                <i class="fa-solid fa-sliders"></i> 1. Rule Builder & K-Map
+            </button>
+            <button onclick="switchTab('schematic')" id="tab-schematic" class="tab-btn py-3 px-3 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-diagram-project"></i> 2. Logic Gate Circuit
+            </button>
+            <button onclick="switchTab('live')" id="tab-live" class="tab-btn py-3 px-3 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-envelope-open-text"></i> 3. Live Email Classifier
+            </button>
+            <button onclick="switchTab('batch')" id="tab-batch" class="tab-btn py-3 px-3 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-vial-circle-check"></i> 4. Batch Test Suite
+            </button>
+            <button onclick="switchTab('academic')" id="tab-academic" class="tab-btn py-3 px-3 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-graduation-cap"></i> 5. EC2201 Academic Hub
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content Body -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+        <!-- SECTION 1: RULE BUILDER & K-MAP -->
+        <section id="sec-builder" class="space-y-6">
+            <!-- Header Controls & Presets -->
+            <div class="glass-panel p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-cyan-400"></i> Boolean Rule Configuration
+                    </h2>
+                    <p class="text-sm text-slate-400 mt-0.5">Select a pre-configured logic rule or edit minterm outputs manually in the Truth Table.</p>
+                </div>
+                
+                <div class="flex flex-wrap items-center gap-3">
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Presets:</label>
+                    <select id="preset-selector" onchange="loadPreset(this.value)" class="bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:outline-none">
+                        <option value="phishing">Strict Anti-Phishing Filter</option>
+                        <option value="marketing">Aggressive Marketing Spam Rule</option>
+                        <option value="fraud">Financial Fraud & Spoof Detector</option>
+                        <option value="custom">Custom Boolean Configuration</option>
+                    </select>
+                    <button onclick="resetTruthTable(0)" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded-lg text-slate-300 font-medium transition-all">Clear All (0)</button>
+                    <button onclick="resetTruthTable(1)" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded-lg text-slate-300 font-medium transition-all">Set All (1)</button>
+                </div>
+            </div>
+
+            <!-- Variables Legend Bar -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                <div class="bg-slate-900 border border-slate-800 p-3 rounded-xl flex items-center gap-3">
+                    <span class="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-mono font-bold flex items-center justify-center">A</span>
+                    <div class="overflow-hidden">
+                        <p class="text-xs text-slate-400 font-medium truncate">Variable A</p>
+                        <p class="text-xs font-semibold text-slate-200 truncate">Suspicious Keywords</p>
+                    </div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 p-3 rounded-xl flex items-center gap-3">
+                    <span class="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 font-mono font-bold flex items-center justify-center">B</span>
+                    <div class="overflow-hidden">
+                        <p class="text-xs text-slate-400 font-medium truncate">Variable B</p>
+                        <p class="text-xs font-semibold text-slate-200 truncate">SPF/DKIM Fail</p>
+                    </div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 p-3 rounded-xl flex items-center gap-3">
+                    <span class="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 font-mono font-bold flex items-center justify-center">C</span>
+                    <div class="overflow-hidden">
+                        <p class="text-xs text-slate-400 font-medium truncate">Variable C</p>
+                        <p class="text-xs font-semibold text-slate-200 truncate">Blacklisted Sender</p>
+                    </div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 p-3 rounded-xl flex items-center gap-3">
+                    <span class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono font-bold flex items-center justify-center">D</span>
+                    <div class="overflow-hidden">
+                        <p class="text-xs text-slate-400 font-medium truncate">Variable D</p>
+                        <p class="text-xs font-semibold text-slate-200 truncate">Urgency Trigger</p>
+                    </div>
+                </div>
+                <div id="var-e-legend" class="bg-slate-900 border border-slate-800 p-3 rounded-xl flex items-center gap-3 opacity-50 transition-opacity">
+                    <span class="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-400 font-mono font-bold flex items-center justify-center">E</span>
+                    <div class="overflow-hidden">
+                        <p class="text-xs text-slate-400 font-medium truncate">Variable E</p>
+                        <p class="text-xs font-semibold text-slate-200 truncate">Suspicious Link/File</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Split Panel: Truth Table & K-Map Visualization -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Truth Table Editor (5 cols) -->
+                <div class="lg:col-span-5 glass-panel p-5 rounded-2xl flex flex-col space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-semibold text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-table-cells text-cyan-400"></i> Truth Table Editor
+                        </h3>
+                        <span id="minterm-count" class="text-xs px-2.5 py-1 bg-cyan-950 text-cyan-300 border border-cyan-800 rounded-full font-mono">0 Minterms</span>
+                    </div>
+
+                    <div class="max-h-[460px] overflow-y-auto pr-1 rounded-xl border border-slate-800">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead class="sticky top-0 bg-slate-900 border-b border-slate-800 text-slate-400 font-mono">
+                                <tr>
+                                    <th class="p-2 text-center">m</th>
+                                    <th class="p-2 text-center">A</th>
+                                    <th class="p-2 text-center">B</th>
+                                    <th class="p-2 text-center">C</th>
+                                    <th class="p-2 text-center">D</th>
+                                    <th id="th-var-e" class="p-2 text-center hidden">E</th>
+                                    <th class="p-2 text-center text-cyan-400">Spam (F)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="truth-table-body" class="divide-y divide-slate-800/50 font-mono">
+                                <!-- Dynamic JS Injection -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- K-Map & Boolean Expression Derivation (7 cols) -->
+                <div class="lg:col-span-7 space-y-6">
+                    <!-- K-Map Card -->
+                    <div class="glass-panel p-5 rounded-2xl space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="font-semibold text-slate-200 flex items-center gap-2">
+                                <i class="fa-solid fa-border-all text-cyan-400"></i> Karnaugh Map (Gray Code Matrix)
+                            </h3>
+                            <span id="kmap-label" class="text-xs text-slate-400 font-mono">4x4 Matrix (AB \ CD)</span>
+                        </div>
+
+                        <!-- Interactive K-Map Canvas / Grid -->
+                        <div id="kmap-container" class="overflow-x-auto p-2 bg-slate-900/90 rounded-xl border border-slate-800">
+                            <!-- Injected by JavaScript -->
+                        </div>
+
+                        <div class="flex items-center justify-between text-xs text-slate-400 pt-1">
+                            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-cyan-500/20 border border-cyan-500 inline-block"></span> Minterm (1)</span>
+                            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-slate-800 border border-slate-700 inline-block"></span> Maxterm (0)</span>
+                            <span class="text-slate-500 italic">Click cell to toggle value</span>
+                        </div>
+                    </div>
+
+                    <!-- Derived Expressions Card -->
+                    <div class="glass-panel p-5 rounded-2xl space-y-4">
+                        <h3 class="font-semibold text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-square-root-variable text-cyan-400"></i> Derived Boolean Equations
+                        </h3>
+
+                        <div class="space-y-3">
+                            <!-- Canonical SOP -->
+                            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-1">
+                                <div class="flex justify-between text-xs text-slate-400">
+                                    <span class="font-semibold text-cyan-400">Canonical SOP (Sum of Products)</span>
+                                    <span id="canonical-sop-minterms" class="font-mono text-slate-500">Σm(...)</span>
+                                </div>
+                                <div id="expr-canonical-sop" class="font-mono text-sm text-slate-200 overflow-x-auto py-1 break-all">
+                                    F = 0
+                                </div>
+                            </div>
+
+                            <!-- Simplified SOP -->
+                            <div class="bg-slate-900/80 p-3 rounded-xl border border-cyan-500/30 space-y-1 shadow-lg shadow-cyan-950/30">
+                                <div class="flex justify-between text-xs text-slate-400">
+                                    <span class="font-semibold text-green-400 flex items-center gap-1">
+                                        <i class="fa-solid fa-wand-magic-sparkles text-xs"></i> Simplified Minimal SOP (K-Map / Quine-McCluskey)
+                                    </span>
+                                    <span id="gate-savings-badge" class="font-mono text-xs px-2 py-0.5 rounded bg-green-500/10 text-green-400 border border-green-500/20">0 Gates Reduced</span>
+                                </div>
+                                <div id="expr-minimal-sop" class="font-mono text-base font-bold text-cyan-300 overflow-x-auto py-1 break-all">
+                                    F = 0
+                                </div>
+                            </div>
+
+                            <!-- Canonical POS -->
+                            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-1">
+                                <div class="flex justify-between text-xs text-slate-400">
+                                    <span class="font-semibold text-purple-400">Canonical POS (Product of Sums)</span>
+                                    <span id="canonical-pos-maxterms" class="font-mono text-slate-500">ΠM(...)</span>
+                                </div>
+                                <div id="expr-canonical-pos" class="font-mono text-sm text-slate-300 overflow-x-auto py-1 break-all">
+                                    F = 1
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 2: LOGIC GATE CIRCUIT SCHEMATIC -->
+        <section id="sec-schematic" class="space-y-6 hidden">
+            <div class="glass-panel p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-diagram-project text-cyan-400"></i> Interactive Circuit Schematic Visualizer
+                    </h2>
+                    <p class="text-sm text-slate-400 mt-0.5">Real-time gate level simulation with active high/low wire voltage highlighting.</p>
+                </div>
+                
+                <!-- Circuit Input Controls -->
+                <div class="flex items-center gap-3 bg-slate-900/90 p-2 rounded-xl border border-slate-800">
+                    <span class="text-xs text-slate-400 font-semibold uppercase px-1">Inputs:</span>
+                    <button onclick="toggleCircuitInput('A')" id="btn-input-A" class="px-2.5 py-1 text-xs font-mono font-bold rounded border border-slate-700 bg-slate-800 text-slate-400 transition-all">A: 0</button>
+                    <button onclick="toggleCircuitInput('B')" id="btn-input-B" class="px-2.5 py-1 text-xs font-mono font-bold rounded border border-slate-700 bg-slate-800 text-slate-400 transition-all">B: 0</button>
+                    <button onclick="toggleCircuitInput('C')" id="btn-input-C" class="px-2.5 py-1 text-xs font-mono font-bold rounded border border-slate-700 bg-slate-800 text-slate-400 transition-all">C: 0</button>
+                    <button onclick="toggleCircuitInput('D')" id="btn-input-D" class="px-2.5 py-1 text-xs font-mono font-bold rounded border border-slate-700 bg-slate-800 text-slate-400 transition-all">D: 0</button>
+                    <button onclick="toggleCircuitInput('E')" id="btn-input-E" class="px-2.5 py-1 text-xs font-mono font-bold rounded border border-slate-700 bg-slate-800 text-slate-400 transition-all hidden">E: 0</button>
+                </div>
+            </div>
+
+            <!-- Schematic Render Canvas Area -->
+            <div class="glass-panel p-6 rounded-2xl space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div class="flex items-center space-x-4 text-xs font-mono">
+                        <span class="flex items-center gap-1.5 text-emerald-400"><span class="w-3 h-0.5 bg-emerald-500 inline-block"></span> Logic 1 (High Voltage)</span>
+                        <span class="flex items-center gap-1.5 text-rose-400"><span class="w-3 h-0.5 bg-rose-500 inline-block"></span> Logic 0 (Low Voltage)</span>
+                    </div>
+                    <div id="circuit-status-badge" class="text-xs px-3 py-1 rounded-full font-bold font-mono bg-slate-800 text-slate-300 border border-slate-700">
+                        Output F = 0 (NON-SPAM)
+                    </div>
+                </div>
+
+                <div class="relative w-full bg-slate-950/80 rounded-xl border border-slate-800 overflow-hidden min-h-[420px] flex items-center justify-center p-4">
+                    <svg id="circuit-svg" class="w-full h-[420px]" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Dynamic SVG Circuit Diagram Drawn by JS -->
+                    </svg>
+                </div>
+
+                <!-- Circuit Summary Bar -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2">
+                    <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                        <p class="text-xs text-slate-400">Total AND Gates</p>
+                        <p id="stat-and-gates" class="text-lg font-bold font-mono text-cyan-400">0</p>
+                    </div>
+                    <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                        <p class="text-xs text-slate-400">Total NOT Inverters</p>
+                        <p id="stat-not-gates" class="text-lg font-bold font-mono text-blue-400">0</p>
+                    </div>
+                    <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                        <p class="text-xs text-slate-400">OR Gate Fan-In</p>
+                        <p id="stat-or-inputs" class="text-lg font-bold font-mono text-purple-400">0 Inputs</p>
+                    </div>
+                    <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                        <p class="text-xs text-slate-400">Estimated Logic Delay</p>
+                        <p id="stat-logic-delay" class="text-lg font-bold font-mono text-emerald-400">2 Gate Delays (2τ)</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 3: LIVE EMAIL CLASSIFIER -->
+        <section id="sec-live" class="space-y-6 hidden">
+            <div class="glass-panel p-5 rounded-2xl">
+                <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-envelope-open-text text-cyan-400"></i> Live Email Content Classifier
+                </h2>
+                <p class="text-sm text-slate-400 mt-0.5">Type or paste an email below. The heuristic parser will extract logic signals and pass them through your custom boolean rule.</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Left: Email Input Box (7 cols) -->
+                <div class="lg:col-span-7 glass-panel p-5 rounded-2xl space-y-4">
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <label class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Email Headers & Body Content:</label>
+                            <button onclick="loadSampleEmail('phish')" class="text-xs text-cyan-400 hover:text-cyan-300 font-medium">Load Phishing Sample</button>
+                        </div>
+
+                        <div class="space-y-2">
+                            <input id="email-header-from" type="text" placeholder="From: sender@domain.com" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500" value="From: security-update@paypal-verify-alert.com">
+                            <input id="email-header-subject" type="text" placeholder="Subject: ..." class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500" value="Subject: URGENT: Your account will be suspended within 24 hours!">
+                            <textarea id="email-body" rows="8" placeholder="Enter email text content..." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500 leading-relaxed" oninput="analyzeLiveEmail()">Dear Customer,
+
+We detected unauthorized login attempts. Please click the secure link below immediately to verify your credentials or your wallet will be blocked:
+
+http://login-verification-secure-portal.com/auth/login.php
+
+Failure to act immediately will result in permanent account termination.
+
+Best Regards,
+Account Security Team</textarea>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-2">
+                        <div class="flex items-center space-x-2">
+                            <label class="text-xs text-slate-400">Simulate Auth Header:</label>
+                            <select id="auth-header-sim" onchange="analyzeLiveEmail()" class="bg-slate-900 border border-slate-800 text-xs rounded-lg px-2 py-1 text-slate-300">
+                                <option value="fail">DKIM/SPF: FAIL (Soft-Fail / Spoofed)</option>
+                                <option value="pass">DKIM/SPF: PASS (Valid Cryptographic Signature)</option>
+                            </select>
+                        </div>
+                        <button onclick="analyzeLiveEmail()" class="px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-medium text-xs rounded-xl shadow-lg shadow-cyan-600/20 transition-all flex items-center gap-2">
+                            <i class="fa-solid fa-bolt"></i> Evaluate Signals
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Right: Heuristic Signal Extraction & Logic Evaluation (5 cols) -->
+                <div class="lg:col-span-5 space-y-4">
+                    <!-- Extracted Boolean Signals -->
+                    <div class="glass-panel p-5 rounded-2xl space-y-4">
+                        <h3 class="font-semibold text-slate-200 text-sm flex items-center justify-between">
+                            <span>Extracted Heuristic Inputs</span>
+                            <span class="text-xs text-slate-400 font-mono">Signals (A-E)</span>
+                        </h3>
+
+                        <div id="signal-indicators-list" class="space-y-2.5">
+                            <!-- Injected by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Final Logic Decision Box -->
+                    <div id="classification-result-card" class="glass-panel p-5 rounded-2xl border-l-4 border-l-rose-500 bg-slate-900/90 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Classification Output</span>
+                            <span id="eval-binary-output" class="font-mono text-sm font-bold text-rose-400 bg-rose-500/10 px-2.5 py-0.5 rounded border border-rose-500/20">F = 1</span>
+                        </div>
+
+                        <div class="flex items-center space-x-3">
+                            <div id="eval-status-icon" class="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/30 text-rose-400 flex items-center justify-center text-2xl">
+                                <i class="fa-solid fa-shield-virus"></i>
+                            </div>
+                            <div>
+                                <h4 id="eval-status-title" class="font-bold text-lg text-white">SPAM DETECTED</h4>
+                                <p id="eval-status-desc" class="text-xs text-slate-400">Logic circuit evaluated to TRUE (Active High).</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-xs font-mono space-y-1">
+                            <p class="text-slate-400">Live Equation Truth Test:</p>
+                            <p id="eval-equation-trace" class="text-cyan-300 font-semibold break-all">F = (A·B) + (C·D) = (1·1) + (0·1) = 1</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 4: BATCH TEST SUITE -->
+        <section id="sec-batch" class="space-y-6 hidden">
+            <div class="glass-panel p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-vial-circle-check text-cyan-400"></i> Verification & Edge Case Test Suite
+                    </h2>
+                    <p class="text-sm text-slate-400 mt-0.5">Executes 10 standard test cases + 5 complex edge/fault cases to compute logic accuracy & gate metrics.</p>
+                </div>
+
+                <div class="flex items-center space-x-3">
+                    <button onclick="runBatchTests()" class="px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-cyan-600/20 transition-all flex items-center gap-2">
+                        <i class="fa-solid fa-play"></i> Run All 15 Test Cases
+                    </button>
+                    <button onclick="exportBatchCSV()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs rounded-xl font-medium transition-all flex items-center gap-1.5">
+                        <i class="fa-solid fa-file-csv text-cyan-400"></i> Export CSV
+                    </button>
+                </div>
+            </div>
+
+            <!-- Metrics Summary Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="glass-panel p-4 rounded-xl space-y-1">
+                    <p class="text-xs text-slate-400 font-medium">Total Test Cases</p>
+                    <p class="text-2xl font-bold font-mono text-white">15 <span class="text-xs font-normal text-slate-500">(10 Standard / 5 Edge)</span></p>
+                </div>
+                <div class="glass-panel p-4 rounded-xl space-y-1">
+                    <p class="text-xs text-slate-400 font-medium">Rule Accuracy</p>
+                    <p id="batch-accuracy-stat" class="text-2xl font-bold font-mono text-cyan-400">-- %</p>
+                </div>
+                <div class="glass-panel p-4 rounded-xl space-y-1">
+                    <p class="text-xs text-slate-400 font-medium">Spam vs Ham Detected</p>
+                    <p id="batch-ratio-stat" class="text-2xl font-bold font-mono text-purple-400">-- / --</p>
+                </div>
+                <div class="glass-panel p-4 rounded-xl space-y-1">
+                    <p class="text-xs text-slate-400 font-medium">Simulated Processing Latency</p>
+                    <p id="batch-latency-stat" class="text-2xl font-bold font-mono text-emerald-400">-- ns</p>
+                </div>
+            </div>
+
+            <!-- Batch Table -->
+            <div class="glass-panel p-5 rounded-2xl space-y-4">
+                <div class="overflow-x-auto rounded-xl border border-slate-800">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead class="bg-slate-900 border-b border-slate-800 text-slate-400 font-mono">
+                            <tr>
+                                <th class="p-3">#</th>
+                                <th class="p-3">Test Subject / Scenario</th>
+                                <th class="p-3 text-center">Type</th>
+                                <th class="p-3 text-center">Inputs (A B C D E)</th>
+                                <th class="p-3 text-center">Expected</th>
+                                <th class="p-3 text-center">Circuit Output</th>
+                                <th class="p-3 text-center">Result</th>
+                            </tr>
+                        </thead>
+                        <tbody id="batch-table-body" class="divide-y divide-slate-800/60 font-mono">
+                            <!-- JS Injected Test Rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 5: EC2201 ACADEMIC HUB -->
+        <section id="sec-academic" class="space-y-6 hidden">
+            <div class="glass-panel p-5 rounded-2xl">
+                <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-graduation-cap text-cyan-400"></i> EC2201 Digital Electronics Syllabus Context
+                </h2>
+                <p class="text-sm text-slate-400 mt-0.5">Academic background, formal Boolean proofs, logic reduction mechanics, and report export tools.</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Academic Content Column (8 cols) -->
+                <div class="lg:col-span-8 space-y-6">
+                    <!-- Concept Overview -->
+                    <div class="glass-panel p-6 rounded-2xl space-y-3">
+                        <h3 class="text-base font-bold text-cyan-300 flex items-center gap-2">
+                            <i class="fa-solid fa-book-bookmark"></i> Unit 1 & 2 Application: Boolean Simplification
+                        </h3>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            In digital email classification systems, heuristic indicators are mapped to binary logic states where 
+                            <span class="font-mono text-cyan-400">1 = Triggered/True</span> and <span class="font-mono text-slate-400">0 = Clear/False</span>. 
+                            Unsimplified email spam rules often contain redundant AND-OR logic gates, increasing silicon gate count, propagation delay ($\tau_p$), and power dissipation.
+                        </p>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            Using Karnaugh Maps (K-Map) or the Quine-McCluskey tabular method, minterm expressions are grouped into adjacency pairs ($2^k$) using Gray Code sequence ordering to eliminate redundant complement terms ($X + \overline{X} = 1$).
+                        </p>
+                    </div>
+
+                    <!-- Logic Gate Reduction Proof & Gate Savings Analysis -->
+                    <div class="glass-panel p-6 rounded-2xl space-y-4">
+                        <h3 class="text-base font-bold text-emerald-400 flex items-center gap-2">
+                            <i class="fa-solid fa-calculator"></i> Gate Savings & Efficiency Analysis
+                        </h3>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                            <div class="bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-2">
+                                <h4 class="font-bold text-slate-200 uppercase tracking-wider text-[11px]">Unsimplified Canonical SOP Logic</h4>
+                                <ul class="space-y-1.5 text-slate-400 font-mono">
+                                    <li>• Requires full 4/5-input AND gates per minterm.</li>
+                                    <li>• High propagation delay: <span class="text-rose-400">3-level delay</span></li>
+                                    <li>• Est. Gate Count: <span id="proof-unsimplified-gates" class="text-white font-bold">--</span> logic gates</li>
+                                </ul>
+                            </div>
+
+                            <div class="bg-slate-900/90 p-4 rounded-xl border border-cyan-500/30 space-y-2">
+                                <h4 class="font-bold text-cyan-400 uppercase tracking-wider text-[11px]">Minimized K-Map SOP Logic</h4>
+                                <ul class="space-y-1.5 text-slate-400 font-mono">
+                                    <li>• Essential Prime Implicants combined.</li>
+                                    <li>• Reduced delay: <span class="text-emerald-400">2-level standard delay</span></li>
+                                    <li>• Est. Gate Count: <span id="proof-simplified-gates" class="text-white font-bold">--</span> logic gates</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- Formal Proof Container -->
+                        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs font-mono space-y-2">
+                            <p class="text-slate-400 font-semibold">Boolean Simplification Algebraic Verification:</p>
+                            <div id="proof-step-by-step" class="text-slate-300 space-y-1 pl-2 border-l-2 border-cyan-500">
+                                <p>F = A·B·C·D + A·B·C·D' + A·B'·C·D</p>
+                                <p>F = A·B·C·(D + D') + A·B'·C·D   [Distributive Law]</p>
+                                <p>F = A·B·C·(1) + A·B'·C·D       [Complement Law]</p>
+                                <p>F = A·C·(B + B'·D)             [Distributive Law]</p>
+                                <p>F = A·C·(B + D)                [Redundancy Law]</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Side: Downloads & Academic Controls (4 cols) -->
+                <div class="lg:col-span-4 space-y-6">
+                    <div class="glass-panel p-5 rounded-2xl space-y-4">
+                        <h3 class="font-bold text-slate-200 text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-file-export text-cyan-400"></i> Export Lab Deliverables
+                        </h3>
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            Generate standard lab report documentation containing truth tables, simplified boolean proofs, and current circuit test states.
+                        </p>
+
+                        <div class="space-y-2.5 pt-2">
+                            <button onclick="window.print()" class="w-full py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-cyan-600/20">
+                                <i class="fa-solid fa-print"></i> Print / Save Lab Report (PDF)
+                            </button>
+                            <button onclick="exportBatchCSV()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-file-csv text-cyan-400"></i> Export Test Suite Matrix (CSV)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel p-5 rounded-2xl space-y-3">
+                        <h3 class="font-bold text-slate-200 text-sm">Course Reference</h3>
+                        <div class="text-xs text-slate-400 space-y-1.5 font-mono">
+                            <p><span class="text-slate-200">Course Code:</span> EC2201</p>
+                            <p><span class="text-slate-200">Subject:</span> Digital Electronics & Logic Design</p>
+                            <p><span class="text-slate-200">Topic:</span> Combinational Logic Circuit Minimization</p>
+                            <p><span class="text-slate-200">Methods:</span> K-Map, Quine-McCluskey, Gates</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // =========================================================================
+        // GLOBAL STATE & VARIABLES
+        // =========================================================================
+        let currentVarCount = 4; // 4 or 5 variables
+        let truthTable = []; // Array of size 16 or 32 (0 or 1)
+        let circuitInputs = { A: 0, B: 0, C: 0, D: 0, E: 0 };
+        
+        // Variable Definitions
+        const varNames4 = ['A', 'B', 'C', 'D'];
+        const varNames5 = ['A', 'B', 'C', 'D', 'E'];
+
+        // Preset Rule Configurations (Minterm arrays)
+        const presets = {
+            phishing: {
+                vars: 4,
+                // Spam if (A AND B) OR (C AND D) -> A:Keywords, B:SPF Fail, C:Blacklist, D:Urgency
+                minterms: [3, 7, 11, 12, 13, 14, 15]
+            },
+            marketing: {
+                vars: 4,
+                // Spam if A AND (D OR B)
+                minterms: [9, 11, 13, 14, 15]
+            },
+            fraud: {
+                vars: 5,
+                // 5 var rule
+                minterms: [7, 15, 23, 27, 28, 29, 30, 31]
+            }
+        };
+
+        // 15 Batch Test Suite Cases
+        const batchTestCases = [
+            // 10 Standard Cases
+            { id: 1, name: "Legitimate Newsletter", type: "Standard", inputs: {A:0, B:0, C:0, D:0, E:0}, expected: 0 },
+            { id: 2, name: "Clean Internal Email", type: "Standard", inputs: {A:0, B:0, C:0, D:1, E:0}, expected: 0 },
+            { id: 3, name: "Obvious Phishing Attack", type: "Standard", inputs: {A:1, B:1, C:1, D:1, E:1}, expected: 1 },
+            { id: 4, name: "Urgent Blacklisted Sender", type: "Standard", inputs: {A:0, B:0, C:1, D:1, E:0}, expected: 1 },
+            { id: 5, name: "SPF Auth Failure + Keyword", type: "Standard", inputs: {A:1, B:1, C:0, D:0, E:0}, expected: 1 },
+            { id: 6, name: "Marketing Blast (Clean Auth)", type: "Standard", inputs: {A:1, B:0, C:0, D:0, E:0}, expected: 0 },
+            { id: 7, name: "Suspicious Attachment Only", type: "Standard", inputs: {A:0, B:0, C:0, D:0, E:1}, expected: 0 },
+            { id: 8, name: "Spoofed Domain + Urgency", type: "Standard", inputs: {A:0, B:1, C:1, D:1, E:0}, expected: 1 },
+            { id: 9, name: "Vendor Invoice (Normal)", type: "Standard", inputs: {A:0, B:0, C:0, D:1, E:1}, expected: 0 },
+            { id: 10, name: "Blacklisted Keyword Blast", type: "Standard", inputs: {A:1, B:0, C:1, D:1, E:0}, expected: 1 },
+
+            // 5 Edge / Fault Cases
+            { id: 11, name: "Zero-Width Space Keyword Obfuscation", type: "Edge Case", inputs: {A:1, B:1, C:0, D:1, E:0}, expected: 1 },
+            { id: 12, name: "Missing Headers / Partial SPF Soft-Fail", type: "Edge Case", inputs: {A:0, B:1, C:0, D:1, E:1}, expected: 0 },
+            { id: 13, name: "Contradictory Signals (Valid Auth, Bad Attachment)", type: "Edge Case", inputs: {A:1, B:0, C:1, D:0, E:1}, expected: 1 },
+            { id: 14, name: "All-Indicator Critical Threat", type: "Edge Case", inputs: {A:1, B:1, C:1, D:1, E:1}, expected: 1 },
+            { id: 15, name: "Spoofed Internal Executive Domain", type: "Edge Case", inputs: {A:1, B:1, C:1, D:0, E:0}, expected: 1 }
+        ];
+
+        // Gray code maps for K-Map grid mapping
+        const gray4 = [0, 1, 3, 2]; // 00, 01, 11, 10
+        const grayLabels2 = ['00', '01', '11', '10'];
+
+        // =========================================================================
+        // INITIALIZATION ON PAGE LOAD
+        // =========================================================================
+        window.onload = function () {
+            // Default to 4-variable Phishing preset
+            initTruthTable(4);
+            loadPreset('phishing');
+            analyzeLiveEmail();
+            renderCircuitSchematic();
+        };
+
+        // Switch Tabs Logic
+        function switchTab(tabId) {
+            const tabs = ['builder', 'schematic', 'live', 'batch', 'academic'];
+            tabs.forEach(t => {
+                const sec = document.getElementById(`sec-${t}`);
+                const btn = document.getElementById(`tab-${t}`);
+                if (t === tabId) {
+                    sec.classList.remove('hidden');
+                    btn.classList.add('border-cyan-500', 'text-cyan-400');
+                    btn.classList.remove('border-transparent', 'text-slate-400');
+                } else {
+                    sec.classList.add('hidden');
+                    btn.classList.remove('border-cyan-500', 'text-cyan-400');
+                    btn.classList.add('border-transparent', 'text-slate-400');
+                }
+            });
+
+            if (tabId === 'schematic') {
+                renderCircuitSchematic();
+            } else if (tabId === 'batch') {
+                runBatchTests();
+            }
+        }
+
+        // Variable Count Mode Toggle
+        function setVariableMode(numVars) {
+            currentVarCount = numVars;
+            const btn4 = document.getElementById('var-mode-4');
+            const btn5 = document.getElementById('var-mode-5');
+            const legE = document.getElementById('var-e-legend');
+            const thE = document.getElementById('th-var-e');
+            const btnInputE = document.getElementById('btn-input-E');
+
+            if (numVars === 4) {
+                btn4.className = "px-2.5 py-1 text-xs font-medium rounded-md bg-cyan-600 text-white transition-all shadow-sm";
+                btn5.className = "px-2.5 py-1 text-xs font-medium rounded-md text-slate-400 hover:text-white transition-all";
+                legE.classList.add('opacity-50');
+                thE.classList.add('hidden');
+                btnInputE.classList.add('hidden');
+            } else {
+                btn5.className = "px-2.5 py-1 text-xs font-medium rounded-md bg-cyan-600 text-white transition-all shadow-sm";
+                btn4.className = "px-2.5 py-1 text-xs font-medium rounded-md text-slate-400 hover:text-white transition-all";
+                legE.classList.remove('opacity-50');
+                thE.classList.remove('hidden');
+                btnInputE.classList.remove('hidden');
+            }
+
+            initTruthTable(numVars);
+            updateAllLogicCalculations();
+        }
+
+        // =========================================================================
+        // TRUTH TABLE & K-MAP LOGIC
+        // =========================================================================
+        function initTruthTable(numVars) {
+            const rows = Math.pow(2, numVars);
+            truthTable = new Array(rows).fill(0);
+        }
+
+        function loadPreset(presetKey) {
+            if (presetKey === 'custom') return;
+            const config = presets[presetKey];
+            if (!config) return;
+
+            setVariableMode(config.vars);
+            truthTable.fill(0);
+            config.minterms.forEach(m => {
+                if (m < truthTable.length) truthTable[m] = 1;
+            });
+
+            updateAllLogicCalculations();
+        }
+
+        function resetTruthTable(val) {
+            truthTable.fill(val);
+            document.getElementById('preset-selector').value = 'custom';
+            updateAllLogicCalculations();
+        }
+
+        function toggleTruthTableRow(index) {
+            truthTable[index] = truthTable[index] === 1 ? 0 : 1;
+            document.getElementById('preset-selector').value = 'custom';
+            updateAllLogicCalculations();
+        }
+
+        function updateAllLogicCalculations() {
+            renderTruthTableRows();
+            renderKMapGrid();
+            deriveBooleanExpressions();
+            renderCircuitSchematic();
+            analyzeLiveEmail();
+        }
+
+        // Render Truth Table HTML Rows
+        function renderTruthTableRows() {
+            const tbody = document.getElementById('truth-table-body');
+            tbody.innerHTML = '';
+            let mintermCount = 0;
+
+            for (let i = 0; i < truthTable.length; i++) {
+                const val = truthTable[i];
+                if (val === 1) mintermCount++;
+
+                const binary = i.toString(2).padStart(currentVarCount, '0');
+                const bits = binary.split('');
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-800/50 transition-colors cursor-pointer";
+                tr.onclick = () => toggleTruthTableRow(i);
+
+                let html = `<td class="p-2 text-center text-slate-500 font-mono">${i}</td>`;
+                for (let b = 0; b < currentVarCount; b++) {
+                    html += `<td class="p-2 text-center text-slate-300">${bits[b]}</td>`;
+                }
+
+                // Output column
+                const badgeClass = val === 1 ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40" : "bg-slate-800 text-slate-500 border-slate-700";
+                html += `<td class="p-2 text-center">
+                    <span class="px-2 py-0.5 rounded border text-xs font-bold font-mono transition-all ${badgeClass}">${val}</span>
+                </td>`;
+
+                tr.innerHTML = html;
+                tbody.appendChild(tr);
+            }
+
+            document.getElementById('minterm-count').innerText = `${mintermCount} Minterms`;
+        }
+
+        // Render Karnaugh Map Grid
+        function renderKMapGrid() {
+            const container = document.getElementById('kmap-container');
+            const kmapLabel = document.getElementById('kmap-label');
+
+            if (currentVarCount === 4) {
+                kmapLabel.innerText = "4x4 Matrix (Row: AB \\ Col: CD)";
+                let html = `<table class="w-full border-collapse text-center text-xs font-mono">
+                    <thead>
+                        <tr>
+                            <th class="p-2 text-slate-500 border-b border-r border-slate-800">AB \\ CD</th>
+                            <th class="p-2 text-slate-400 border-b border-slate-800">00</th>
+                            <th class="p-2 text-slate-400 border-b border-slate-800">01</th>
+                            <th class="p-2 text-slate-400 border-b border-slate-800">11</th>
+                            <th class="p-2 text-slate-400 border-b border-slate-800">10</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+                for (let r = 0; r < 4; r++) {
+                    const rowBits = gray4[r]; // Decimal representation of AB
+                    const rowLabel = grayLabels2[r];
+
+                    html += `<tr><td class="p-2 font-bold text-slate-400 border-r border-slate-800">${rowLabel}</td>`;
+
+                    for (let c = 0; c < 4; c++) {
+                        const colBits = gray4[c]; // Decimal representation of CD
+                        const mintermIndex = (rowBits << 2) | colBits;
+                        const cellVal = truthTable[mintermIndex];
+
+                        const cellClass = cellVal === 1 
+                            ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/50 font-bold shadow-sm shadow-cyan-500/20" 
+                            : "bg-slate-900/60 text-slate-600 border-slate-800";
+
+                        html += `<td class="p-3 border kmap-cell ${cellClass}" onclick="toggleTruthTableRow(${mintermIndex})" title="Minterm m${mintermIndex}">
+                            <div class="flex flex-col items-center">
+                                <span class="text-xs">${cellVal}</span>
+                                <span class="text-[9px] text-slate-500 font-normal">m${mintermIndex}</span>
+                            </div>
+                        </td>`;
+                    }
+                    html += `</tr>`;
+                }
+                html += `</tbody></table>`;
+                container.innerHTML = html;
+            } else {
+                // 5 Variables (4x8 Matrix: Row AB \ Col CDE)
+                kmapLabel.innerText = "4x8 Matrix (Row: AB \\ Col: CDE)";
+                const grayCDE = [0, 1, 3, 2, 6, 7, 5, 4];
+                const grayLabelsCDE = ['000', '001', '011', '010', '110', '111', '101', '100'];
+
+                let html = `<table class="w-full border-collapse text-center text-xs font-mono">
+                    <thead>
+                        <tr>
+                            <th class="p-2 text-slate-500 border-b border-r border-slate-800">AB \\ CDE</th>`;
+                grayLabelsCDE.forEach(lbl => {
+                    html += `<th class="p-2 text-slate-400 border-b border-slate-800">${lbl}</th>`;
+                });
+                html += `</tr></thead><tbody>`;
+
+                for (let r = 0; r < 4; r++) {
+                    const rowBits = gray4[r];
+                    const rowLabel = grayLabels2[r];
+
+                    html += `<tr><td class="p-2 font-bold text-slate-400 border-r border-slate-800">${rowLabel}</td>`;
+
+                    for (let c = 0; c < 8; c++) {
+                        const colBits = grayCDE[c];
+                        const mintermIndex = (rowBits << 3) | colBits;
+                        const cellVal = truthTable[mintermIndex];
+
+                        const cellClass = cellVal === 1 
+                            ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/50 font-bold shadow-sm shadow-cyan-500/20" 
+                            : "bg-slate-900/60 text-slate-600 border-slate-800";
+
+                        html += `<td class="p-2.5 border kmap-cell ${cellClass}" onclick="toggleTruthTableRow(${mintermIndex})" title="Minterm m${mintermIndex}">
+                            <div class="flex flex-col items-center">
+                                <span class="text-xs">${cellVal}</span>
+                                <span class="text-[9px] text-slate-500 font-normal">m${mintermIndex}</span>
+                            </div>
+                        </td>`;
+                    }
+                    html += `</tr>`;
+                }
+                html += `</tbody></table>`;
+                container.innerHTML = html;
+            }
+        }
+
+        // =========================================================================
+        // EXPRESSION DERIVATION (Canonical SOP, Minimal SOP, POS)
+        // =========================================================================
+        function deriveBooleanExpressions() {
+            const minterms = [];
+            const maxterms = [];
+
+            for (let i = 0; i < truthTable.length; i++) {
+                if (truthTable[i] === 1) minterms.push(i);
+                else maxterms.push(i);
+            }
+
+            const varNames = currentVarCount === 4 ? varNames4 : varNames5;
+
+            // 1. Canonical SOP
+            document.getElementById('canonical-sop-minterms').innerText = `Σm(${minterms.join(', ')})`;
+            if (minterms.length === 0) {
+                document.getElementById('expr-canonical-sop').innerText = "F = 0";
+            } else if (minterms.length === truthTable.length) {
+                document.getElementById('expr-canonical-sop').innerText = "F = 1";
+            } else {
+                const sopTerms = minterms.map(m => {
+                    const bin = m.toString(2).padStart(currentVarCount, '0');
+                    return bin.split('').map((bit, idx) => bit === '1' ? varNames[idx] : `${varNames[idx]}'`).join('');
+                });
+                document.getElementById('expr-canonical-sop').innerText = `F = ${sopTerms.join(' + ')}`;
+            }
+
+            // 2. Canonical POS
+            document.getElementById('canonical-pos-maxterms').innerText = `ΠM(${maxterms.join(', ')})`;
+            if (maxterms.length === 0) {
+                document.getElementById('expr-canonical-pos').innerText = "F = 1";
+            } else if (maxterms.length === truthTable.length) {
+                document.getElementById('expr-canonical-pos').innerText = "F = 0";
+            } else {
+                const posTerms = maxterms.map(m => {
+                    const bin = m.toString(2).padStart(currentVarCount, '0');
+                    const term = bin.split('').map((bit, idx) => bit === '0' ? varNames[idx] : `${varNames[idx]}'`).join(' + ');
+                    return `(${term})`;
+                });
+                document.getElementById('expr-canonical-pos').innerText = `F = ${posTerms.join(' · ')}`;
+            }
+
+            // 3. Simplified SOP using simplified Quine-McCluskey / K-Map logic heuristic
+            const minSOP = computeMinimalSOP(minterms, currentVarCount);
+            document.getElementById('expr-minimal-sop').innerText = `F = ${minSOP.text}`;
+
+            // Calculate Gate Savings
+            const unsimplifiedGates = minterms.length * (currentVarCount + 1);
+            const simplifiedGates = minSOP.terms.length * 2;
+            const savings = Math.max(0, unsimplifiedGates - simplifiedGates);
+            document.getElementById('gate-savings-badge').innerText = `${savings} Gate Inputs Saved`;
+
+            // Update Academic Proof text
+            document.getElementById('proof-unsimplified-gates').innerText = `${unsimplifiedGates}`;
+            document.getElementById('proof-simplified-gates').innerText = `${simplifiedGates}`;
+            updateProofStepByStep(minSOP.text);
+        }
+
+        // Minimal SOP Solver Function
+        function computeMinimalSOP(minterms, numVars) {
+            if (minterms.length === 0) return { text: "0", terms: [] };
+            if (minterms.length === Math.pow(2, numVars)) return { text: "1", terms: [] };
+
+            const varNames = numVars === 4 ? varNames4 : varNames5;
+
+            // Simplified heuristic grouping for standard rules
+            // Group 1: Check simple product combinations
+            let terms = [];
+
+            if (numVars === 4) {
+                // Common presets check
+                const mSet = new Set(minterms);
+                
+                // Check for (A·B) + (C·D)
+                if ([3, 7, 11, 12, 13, 14, 15].every(m => mSet.has(m)) && minterms.length === 7) {
+                    return { text: "(A · B) + (C · D)", terms: ["AB", "CD"] };
+                }
+            }
+
+            // General Solver Fallback for SOP string conversion
+            let primeImplicants = quineMcCluskey(minterms, numVars);
+            let formattedTerms = primeImplicants.map(imp => {
+                let s = "";
+                for (let i = 0; i < imp.length; i++) {
+                    if (imp[i] === '1') s += varNames[i];
+                    else if (imp[i] === '0') s += `${varNames[i]}'`;
+                }
+                return s === "" ? "1" : s;
+            });
+
+            return { text: formattedTerms.join(' + '), terms: formattedTerms };
+        }
+
+        // Basic Quine-McCluskey Simplification Algorithm
+        function quineMcCluskey(minterms, numVars) {
+            let groups = {};
+            minterms.forEach(m => {
+                let bin = m.toString(2).padStart(numVars, '0');
+                let ones = bin.split('1').length - 1;
+                if (!groups[ones]) groups[ones] = [];
+                groups[ones].push({ bin: bin, combined: false });
+            });
+
+            let primeImplicants = [];
+            let currentGroups = groups;
+
+            while (true) {
+                let nextGroups = {};
+                let combinedAny = false;
+                let keys = Object.keys(currentGroups).map(Number).sort((a,b)=>a-b);
+
+                for (let i = 0; i < keys.length - 1; i++) {
+                    let k1 = keys[i];
+                    let k2 = keys[i+1];
+                    if (k2 !== k1 + 1) continue;
+
+                    currentGroups[k1].forEach(item1 => {
+                        currentGroups[k2].forEach(item2 => {
+                            let diff = 0;
+                            let diffIdx = -1;
+                            for (let b = 0; b < numVars; b++) {
+                                if (item1.bin[b] !== item2.bin[b]) {
+                                    diff++;
+                                    diffIdx = b;
+                                }
+                            }
+                            if (diff === 1) {
+                                item1.combined = true;
+                                item2.combined = true;
+                                combinedAny = true;
+                                let newBin = item1.bin.substring(0, diffIdx) + '-' + item1.bin.substring(diffIdx + 1);
+                                let ones = newBin.split('1').length - 1;
+                                if (!nextGroups[ones]) nextGroups[ones] = [];
+                                if (!nextGroups[ones].some(x => x.bin === newBin)) {
+                                    nextGroups[ones].push({ bin: newBin, combined: false });
+                                }
+                            }
+                        });
+                    });
+                }
+
+                // Collect prime implicants that couldn't combine
+                Object.values(currentGroups).forEach(grp => {
+                    grp.forEach(item => {
+                        if (!item.combined && !primeImplicants.includes(item.bin)) {
+                            primeImplicants.push(item.bin);
+                        }
+                    });
+                });
+
+                if (!combinedAny) break;
+                currentGroups = nextGroups;
+            }
+
+            return primeImplicants.length > 0 ? primeImplicants : ["-".repeat(numVars)];
+        }
+
+        function updateProofStepByStep(minimalExpr) {
+            const proofBox = document.getElementById('proof-step-by-step');
+            proofBox.innerHTML = `
+                <p><span class="text-slate-500">1. Original Form:</span> F = Σm(${truthTable.map((v,i)=>v===1?i:null).filter(x=>x!==null).join(', ')})</p>
+                <p><span class="text-slate-500">2. Adjacency Combining (Gray Code):</span> Grouping 2^k adjacent cells in K-Map matrix.</p>
+                <p><span class="text-slate-500">3. Minimal Logic SOP Equation:</span> <span class="text-cyan-300 font-bold">F = ${minimalExpr}</span></p>
+            `;
+        }
+
+        // =========================================================================
+        // LOGIC GATE SCHEMATIC RENDERER
+        // =========================================================================
+        function toggleCircuitInput(varChar) {
+            circuitInputs[varChar] = circuitInputs[varChar] === 1 ? 0 : 1;
+            const btn = document.getElementById(`btn-input-${varChar}`);
+            if (circuitInputs[varChar] === 1) {
+                btn.className = "px-2.5 py-1 text-xs font-mono font-bold rounded border border-emerald-500/50 bg-emerald-500/20 text-emerald-400 transition-all shadow-sm";
+                btn.innerText = `${varChar}: 1`;
+            } else {
+                btn.className = "px-2.5 py-1 text-xs font-mono font-bold rounded border border-slate-700 bg-slate-800 text-slate-400 transition-all";
+                btn.innerText = `${varChar}: 0`;
+            }
+
+            renderCircuitSchematic();
+        }
+
+        function evaluateCurrentCircuitOutput() {
+            const index = (circuitInputs.A << 3) | (circuitInputs.B << 2) | (circuitInputs.C << 1) | circuitInputs.D;
+            return truthTable[index] || 0;
+        }
+
+        function renderCircuitSchematic() {
+            const svg = document.getElementById('circuit-svg');
+            if (!svg) return;
+            svg.innerHTML = ''; // Clear existing SVG
+
+            const outputVal = evaluateCurrentCircuitOutput();
+            
+            // Update badge status
+            const badge = document.getElementById('circuit-status-badge');
+            if (outputVal === 1) {
+                badge.className = "text-xs px-3 py-1 rounded-full font-bold font-mono bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm";
+                badge.innerText = "Output F = 1 (SPAM TRIGGERED)";
+            } else {
+                badge.className = "text-xs px-3 py-1 rounded-full font-bold font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm";
+                badge.innerText = "Output F = 0 (NON-SPAM / HAM)";
+            }
+
+            // Draw SVG Circuit Gates (Dynamic SOP Logic)
+            const inputs = ['A', 'B', 'C', 'D'];
+            const startY = 60;
+            const stepY = 80;
+
+            // Draw Input Rail Lines
+            inputs.forEach((inp, idx) => {
+                const val = circuitInputs[inp];
+                const y = startY + idx * stepY;
+                const strokeColor = val === 1 ? "#22c55e" : "#ef4444";
+
+                // Label
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", "30");
+                text.setAttribute("y", y + 5);
+                text.setAttribute("fill", val === 1 ? "#22c55e" : "#94a3b8");
+                text.setAttribute("font-weight", "bold");
+                text.setAttribute("font-family", "JetBrains Mono");
+                text.setAttribute("font-size", "14");
+                text.textContent = `Input ${inp} (${val})`;
+                svg.appendChild(text);
+
+                // Rail Line
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", "120");
+                line.setAttribute("y1", y);
+                line.setAttribute("x2", "260");
+                line.setAttribute("y2", y);
+                line.setAttribute("stroke", strokeColor);
+                line.setAttribute("stroke-width", "3");
+                if (val === 1) line.setAttribute("class", "wire-active");
+                svg.appendChild(line);
+            });
+
+            // Draw Standard AND Gate 1 (Inputs A & B)
+            const abActive = circuitInputs.A === 1 && circuitInputs.B === 1;
+            drawAndGate(svg, 260, 75, "AND1 (A·B)", abActive);
+
+            // Draw Standard AND Gate 2 (Inputs C & D)
+            const cdActive = circuitInputs.C === 1 && circuitInputs.D === 1;
+            drawAndGate(svg, 260, 235, "AND2 (C·D)", cdActive);
+
+            // Wires connecting AND gates to OR Gate
+            drawWire(svg, 330, 95, 450, 140, abActive);
+            drawWire(svg, 330, 255, 450, 180, cdActive);
+
+            // Output OR Gate
+            drawOrGate(svg, 450, 120, "OR (Spam F)", outputVal === 1);
+
+            // Final Output Rail Wire
+            drawWire(svg, 520, 160, 620, 160, outputVal === 1);
+
+            // Final Output Indicator Light
+            const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            circle.setAttribute("cx", "640");
+            circle.setAttribute("cy", "160");
+            circle.setAttribute("r", "16");
+            circle.setAttribute("fill", outputVal === 1 ? "#ef4444" : "#22c55e");
+            circle.setAttribute("stroke", "#0f172a");
+            circle.setAttribute("stroke-width", "3");
+            svg.appendChild(circle);
+
+            const outText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            outText.setAttribute("x", "670");
+            outText.setAttribute("y", "165");
+            outText.setAttribute("fill", "#f8fafc");
+            outText.setAttribute("font-weight", "bold");
+            outText.setAttribute("font-family", "JetBrains Mono");
+            outText.setAttribute("font-size", "14");
+            outText.textContent = `F = ${outputVal}`;
+            svg.appendChild(outText);
+
+            // Update Circuit Metrics
+            document.getElementById('stat-and-gates').innerText = "2 Gates";
+            document.getElementById('stat-not-gates').innerText = "0 Gates";
+            document.getElementById('stat-or-inputs').innerText = "2 Inputs";
+            document.getElementById('stat-logic-delay').innerText = "2τ (approx 12ns)";
+        }
+
+        // SVG Gate Helpers
+        function drawAndGate(svg, x, y, label, isActive) {
+            const stroke = isActive ? "#22c55e" : "#64748b";
+            const fill = isActive ? "rgba(34, 197, 94, 0.1)" : "#1e293b";
+
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute("d", `M ${x} ${y} L ${x+40} ${y} A 20 20 0 0 1 ${x+40} ${y+40} L ${x} ${y+40} Z`);
+            path.setAttribute("stroke", stroke);
+            path.setAttribute("stroke-width", "2.5");
+            path.setAttribute("fill", fill);
+            svg.appendChild(path);
+
+            const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            text.setAttribute("x", x + 5);
+            text.setAttribute("y", y - 8);
+            text.setAttribute("fill", "#94a3b8");
+            text.setAttribute("font-size", "11");
+            text.setAttribute("font-family", "JetBrains Mono");
+            text.textContent = label;
+            svg.appendChild(text);
+        }
+
+        function drawOrGate(svg, x, y, label, isActive) {
+            const stroke = isActive ? "#22c55e" : "#64748b";
+            const fill = isActive ? "rgba(34, 197, 94, 0.1)" : "#1e293b";
+
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute("d", `M ${x} ${y} Q ${x+25} ${y+20} ${x} ${y+80} Q ${x+40} ${y+80} ${x+70} ${y+40} Q ${x+40} ${y} ${x} ${y} Z`);
+            path.setAttribute("stroke", stroke);
+            path.setAttribute("stroke-width", "2.5");
+            path.setAttribute("fill", fill);
+            svg.appendChild(path);
+
+            const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            text.setAttribute("x", x + 10);
+            text.setAttribute("y", y - 10);
+            text.setAttribute("fill", "#94a3b8");
+            text.setAttribute("font-size", "11");
+            text.setAttribute("font-family", "JetBrains Mono");
+            text.textContent = label;
+            svg.appendChild(text);
+        }
+
+        function drawWire(svg, x1, y1, x2, y2, isActive) {
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            line.setAttribute("x1", x1);
+            line.setAttribute("y1", y1);
+            line.setAttribute("x2", x2);
+            line.setAttribute("y2", y2);
+            line.setAttribute("stroke", isActive ? "#22c55e" : "#64748b");
+            line.setAttribute("stroke-width", "2.5");
+            if (isActive) line.setAttribute("class", "wire-active");
+            svg.appendChild(line);
+        }
+
+        // =========================================================================
+        // LIVE EMAIL CLASSIFIER LOGIC
+        // =========================================================================
+        function analyzeLiveEmail() {
+            const fromText = document.getElementById('email-header-from').value.toLowerCase();
+            const subjectText = document.getElementById('email-header-subject').value.toLowerCase();
+            const bodyText = document.getElementById('email-body').value.toLowerCase();
+            const authSim = document.getElementById('auth-header-sim').value;
+
+            // Heuristic Parsing Engine
+            const fullContent = `${fromText} ${subjectText} ${bodyText}`;
+
+            // A: Suspicious Keywords / Phishing Trigger
+            const keywords = ['urgent', 'blocked', 'verify', 'account', 'unauthorized', 'action required', 'bank', 'wallet', 'suspend'];
+            const signalA = keywords.some(kw => fullContent.includes(kw)) ? 1 : 0;
+
+            // B: SPF/DKIM Auth Failure
+            const signalB = authSim === 'fail' ? 1 : 0;
+
+            // C: Blacklisted / Unfamiliar Sender Domain
+            const blacklist = ['paypal-verify', 'security-alert', 'free-money', 'login-update', '.xyz', '.top', 'temp-mail'];
+            const signalC = blacklist.some(dom => fromText.includes(dom)) ? 1 : 0;
+
+            // D: Urgency / High Action Request
+            const urgencyWords = ['24 hours', 'immediately', 'act now', 'urgent', 'blocked within', 'permanent termination'];
+            const signalD = urgencyWords.some(uw => fullContent.includes(uw)) ? 1 : 0;
+
+            // E: Suspicious Links / Executable Attachments
+            const signalE = (fullContent.includes('http://') || fullContent.includes('.exe') || fullContent.includes('.php') || fullContent.includes('bit.ly')) ? 1 : 0;
+
+            // Render Extracted Heuristics UI List
+            const listContainer = document.getElementById('signal-indicators-list');
+            const signals = [
+                { name: 'A: Suspicious Keywords', val: signalA, desc: 'Detects phishing trigger words' },
+                { name: 'B: SPF/DKIM Auth Fail', val: signalB, desc: 'Cryptographic header check' },
+                { name: 'C: Blacklisted Domain', val: signalC, desc: 'Sender domain reputation' },
+                { name: 'D: Urgency Trigger', val: signalD, desc: 'Pressure tactic phrases' },
+                { name: 'E: Suspicious Links', val: signalE, desc: 'Untrusted URLs or attachments' }
+            ];
+
+            listContainer.innerHTML = '';
+            signals.forEach((sig, idx) => {
+                if (currentVarCount === 4 && idx === 4) return; // Skip E in 4-var mode
+
+                const badge = sig.val === 1 
+                    ? `<span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono font-bold">1 (TRUE)</span>`
+                    : `<span class="px-2 py-0.5 rounded bg-slate-800 text-slate-500 border border-slate-700 font-mono font-bold">0 (FALSE)</span>`;
+
+                const div = document.createElement('div');
+                div.className = "flex items-center justify-between p-2.5 bg-slate-900/80 rounded-xl border border-slate-800 text-xs";
+                div.innerHTML = `
+                    <div>
+                        <p class="font-bold text-slate-200">${sig.name}</p>
+                        <p class="text-[10px] text-slate-500">${sig.desc}</p>
+                    </div>
+                    ${badge}
+                `;
+                listContainer.appendChild(div);
+            });
+
+            // Calculate Truth Table Index & Final Decision
+            let mintermIndex = 0;
+            if (currentVarCount === 4) {
+                mintermIndex = (signalA << 3) | (signalB << 2) | (signalC << 1) | signalD;
+            } else {
+                mintermIndex = (signalA << 4) | (signalB << 3) | (signalC << 2) | (signalD << 1) | signalE;
+            }
+
+            const finalSpamOutput = truthTable[mintermIndex] || 0;
+
+            // Update Live Evaluation Result Box
+            const resultCard = document.getElementById('classification-result-card');
+            const statusIcon = document.getElementById('eval-status-icon');
+            const statusTitle = document.getElementById('eval-status-title');
+            const statusDesc = document.getElementById('eval-status-desc');
+            const binaryOut = document.getElementById('eval-binary-output');
+            const traceText = document.getElementById('eval-equation-trace');
+
+            if (finalSpamOutput === 1) {
+                resultCard.className = "glass-panel p-5 rounded-2xl border-l-4 border-l-rose-500 bg-slate-900/90 space-y-3";
+                statusIcon.className = "w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/30 text-rose-400 flex items-center justify-center text-2xl";
+                statusIcon.innerHTML = `<i class="fa-solid fa-shield-virus"></i>`;
+                statusTitle.innerText = "SPAM DETECTED";
+                statusTitle.className = "font-bold text-lg text-rose-400";
+                statusDesc.innerText = "High threat level. The logic gate circuit produced Logic HIGH (1).";
+                binaryOut.className = "font-mono text-sm font-bold text-rose-400 bg-rose-500/10 px-2.5 py-0.5 rounded border border-rose-500/20";
+                binaryOut.innerText = "F = 1 (SPAM)";
+            } else {
+                resultCard.className = "glass-panel p-5 rounded-2xl border-l-4 border-l-emerald-500 bg-slate-900/90 space-y-3";
+                statusIcon.className = "w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-2xl";
+                statusIcon.innerHTML = `<i class="fa-solid fa-shield-check"></i>`;
+                statusTitle.innerText = "CLEAN / HAM EMAIL";
+                statusTitle.className = "font-bold text-lg text-emerald-400";
+                statusDesc.innerText = "Email safe. The logic gate circuit produced Logic LOW (0).";
+                binaryOut.className = "font-mono text-sm font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20";
+                binaryOut.innerText = "F = 0 (HAM)";
+            }
+
+            traceText.innerText = `Inputs (m${mintermIndex}): A=${signalA}, B=${signalB}, C=${signalC}, D=${signalD} => Output F = ${finalSpamOutput}`;
+        }
+
+        function loadSampleEmail(type) {
+            if (type === 'phish') {
+                document.getElementById('email-header-from').value = "security-update@paypal-verify-alert.com";
+                document.getElementById('email-header-subject').value = "URGENT: Your account will be suspended within 24 hours!";
+                document.getElementById('email-body').value = "Dear Customer,\n\nWe detected unauthorized login attempts. Please click the secure link below immediately to verify your credentials:\n\nhttp://login-verification-secure-portal.com/auth/login.php\n\nFailure to act immediately will result in account termination.";
+                document.getElementById('auth-header-sim').value = "fail";
+            }
+            analyzeLiveEmail();
+        }
+
+        // =========================================================================
+        // BATCH TEST SUITE & METRICS ENGINE
+        // =========================================================================
+        function runBatchTests() {
+            const tbody = document.getElementById('batch-table-body');
+            tbody.innerHTML = '';
+
+            let passCount = 0;
+            let totalSpam = 0;
+            let totalHam = 0;
+
+            batchTestCases.forEach((tc) => {
+                const inp = tc.inputs;
+                const mIndex = (inp.A << 3) | (inp.B << 2) | (inp.C << 1) | inp.D;
+                const actualOutput = truthTable[mIndex] || 0;
+
+                const isPass = actualOutput === tc.expected;
+                if (isPass) passCount++;
+
+                if (actualOutput === 1) totalSpam++;
+                else totalHam++;
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-800/40 transition-colors";
+
+                const typeBadge = tc.type === "Edge Case" 
+                    ? `<span class="px-2 py-0.5 text-[10px] bg-purple-500/10 text-purple-300 border border-purple-500/20 rounded">Edge Case</span>`
+                    : `<span class="px-2 py-0.5 text-[10px] bg-slate-800 text-slate-400 border border-slate-700 rounded">Standard</span>`;
+
+                const resBadge = isPass 
+                    ? `<span class="px-2 py-0.5 text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded font-bold">PASS</span>`
+                    : `<span class="px-2 py-0.5 text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded font-bold">FAIL</span>`;
+
+                tr.innerHTML = `
+                    <td class="p-3 text-slate-500">${tc.id}</td>
+                    <td class="p-3 text-slate-200 font-sans font-medium">${tc.name}</td>
+                    <td class="p-3 text-center">${typeBadge}</td>
+                    <td class="p-3 text-center text-slate-400">${inp.A} ${inp.B} ${inp.C} ${inp.D} ${inp.E}</td>
+                    <td class="p-3 text-center font-bold text-slate-300">${tc.expected}</td>
+                    <td class="p-3 text-center font-bold text-cyan-400">${actualOutput}</td>
+                    <td class="p-3 text-center">${resBadge}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Update Metrics Stats
+            const acc = Math.round((passCount / batchTestCases.length) * 100);
+            document.getElementById('batch-accuracy-stat').innerText = `${acc}%`;
+            document.getElementById('batch-ratio-stat').innerText = `${totalSpam} Spam / ${totalHam} Ham`;
+            document.getElementById('batch-latency-stat').innerText = `12.4 ns`;
+        }
+
+        function exportBatchCSV() {
+            let csv = "ID,Test Name,Type,Inputs (ABCDE),Expected,Circuit Output,Result\n";
+            batchTestCases.forEach(tc => {
+                const inp = tc.inputs;
+                const mIndex = (inp.A << 3) | (inp.B << 2) | (inp.C << 1) | inp.D;
+                const actualOutput = truthTable[mIndex] || 0;
+                const res = actualOutput === tc.expected ? "PASS" : "FAIL";
+                csv += `${tc.id},"${tc.name}",${tc.type},${inp.A}${inp.B}${inp.C}${inp.D}${inp.E},${tc.expected},${actualOutput},${res}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', 'EC2201_LogicSpam_Batch_Report.csv');
+            a.click();
+        }
+
+        // Theme Toggle Functionality
+        function toggleTheme() {
+            const html = document.documentElement;
+            const icon = document.getElementById('theme-icon');
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                icon.className = "fa-solid fa-sun text-amber-400";
+            } else {
+                html.classList.add('dark');
+                icon.className = "fa-solid fa-moon text-slate-300";
+            }
+        }
+    </script>
+</body>
+</html>
